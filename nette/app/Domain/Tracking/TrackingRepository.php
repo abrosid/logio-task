@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App\Domain\Tracking;
 
@@ -10,9 +12,7 @@ class TrackingRepository implements ICacheRepository
 	private const CACHE_PREFIX = 'tracking_';
 	public function __construct(
 		private readonly ICacheAdapter $cacheAdapter,
-	)
-	{
-	}
+	) {}
 
 	public function getCacheKey(string $id): string
 	{
@@ -32,6 +32,11 @@ class TrackingRepository implements ICacheRepository
 
 	public function getById(string $id): array
 	{
-		return $this->cacheAdapter->get($this->getCacheKey($id)) ?? [$id => 0];
+		$data = $this->cacheAdapter->get($this->getCacheKey($id));
+		if ($data === []) {
+			return [$id => 0];
+		}
+
+		return $data;
 	}
 }

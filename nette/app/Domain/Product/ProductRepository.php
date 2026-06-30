@@ -13,8 +13,7 @@ class ProductRepository extends DBRepository implements IProductRepository, ICac
 	public function __construct(
 		IDBAdapter $storageAdapter,
 		private readonly ICacheAdapter $cacheAdapter
-	)
-	{
+	) {
 		parent::__construct($storageAdapter);
 	}
 
