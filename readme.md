@@ -3,6 +3,7 @@
 
 This project is a simple PHP [Nette](https://nette.org) web application  that demonstrates how to set up Xdebug with Docker and PHPStorm or VS Code for debugging purposes. It includes a basic controller that retrieves product information from either ElasticSearch or MySQL, caches the results, and tracks the number of queries made for each product.
 See the [task.md](task.md) file for detailed instructions on how to implement the controller and caching mechanism.
+More information about the solution can be found in the [solution.md](solution.md) file.
 
 ## Prerequisites
 
@@ -37,6 +38,7 @@ See the [task.md](task.md) file for detailed instructions on how to implement th
 8. Navigate to the endpoint.  [http://localhost:8080/propduct/detail/123](http://localhost:8080/product/detail/123).
 Each next request to the same endpoint will return the cached result and increment the query count for that product..
 9. Change the mySQLAdapter to elasticSearchAdapter in the [services.neon](nette/config/services.neon) file to switch the data source from MySQL to ElasticSearch. Clear the product cache from [data](data) folder and repeat step 8 to see the storage changes.
+
 
 # Debugging with Xdebug
 
