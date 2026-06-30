@@ -34,7 +34,7 @@
 		}
 	},
 	"scripts": {
-		"phpstan": "phpstan analyse",
+		"phpstan": "phpstan analyse app tests",
 		"tester": "tester tests -s",
 	  	"post-setup": [
 		  "chmod -R +x vendor/bin"
