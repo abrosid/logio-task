@@ -1,0 +1,34 @@
+services:
+	- Nette\Caching\Cache
+	cache.storage: Nette\Caching\Storages\FileStorage(%appDir%/../data)
+	- App\Core\RouterFactory::createRouter
+
+	# list of mocked drivers, registered for testing/demo purposes only
+	- App\Infrastructure\ElasticSearch\Mock\ElasticSearchDriver
+	- App\Infrastructure\MySQL\Mock\MySQLDriver
+	- App\Infrastructure\Redis\Mock\RedisDriver
+
+	# persistent storage/cache adapters,
+	# only one adapter can be enabled as a general adapter at a time
+	# to switch between adapters, comment/uncomment the corresponding line below (see I.1 and I.2 in task.md)
+	mySQLAdapter: App\Infrastructure\MySQL\MySQLAdapter
+#	elasticSearchAdapter: App\Infrastructure\ElasticSearch\ElasticSearchAdapter
+
+	fileCacheAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
+#	redisCacheAdapter: App\Infrastructure\Redis\RedisAdapter
+
+	- App\Domain\Product\ProductRepository
+
+	# services
+	- App\Domain\Product\ProductService
+	- App\Domain\Tracking\TrackingRepository
+
+
+# this config option slows down the application in debug mode, so it is disabled by default. It can be enabled for development purposes.
+#search:
+#	-	in: %appDir%
+#		classes:
+#			- *Facade
+#			- *Factory
+#			- *Repository
+#			- *Service

@@ -1,0 +1,2 @@
+domain space for various product-related use cases (i.e. cache get/set, db crud, etc.). 
+This space is designed to encapsulate the business logic and rules associated with product management, ensuring that all operations related to products are handled consistently and efficiently.

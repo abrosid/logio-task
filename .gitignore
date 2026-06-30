@@ -1,0 +1,21 @@
+# Environment variables
+.env
+# data cache
+nette/data/*
+!nette/data/.gitkeep
+
+# Nette-specific ignores
+nette/temp/*
+!nette/temp/.gitkeep
+nette/log/*
+!nette/log/.gitkeep
+nette/vendor/
+
+# Node dependencies
+nette/node_modules/
+
+# IDEs and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
