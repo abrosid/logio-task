@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 namespace App;
 
@@ -44,5 +46,6 @@ class Bootstrap
 		$configDir = $this->rootDir . '/config';
 		$this->configurator->addConfig($configDir . '/common.neon');
 		$this->configurator->addConfig($configDir . '/services.neon');
+		$this->configurator->addConfig($configDir . '/services.local.neon');
 	}
 }

@@ -1,0 +1,6 @@
+# Mock drivers - for development/testing purposes ONLY
+# Do NOT include in production environments
+services:
+    - App\Infrastructure\ElasticSearch\Mock\ElasticSearchDriver
+    - App\Infrastructure\MySQL\Mock\MySQLDriver
+    - App\Infrastructure\Redis\Mock\RedisDriver

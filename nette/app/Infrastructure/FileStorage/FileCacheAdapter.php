@@ -13,11 +13,11 @@ class FileCacheAdapter implements ICacheAdapter
 	{
 	}
 
-	public function get(string $key): array
+	public function get(string $key): ?array
 	{
 		$data = $this->fileStorage->read($key);
 		if ($data === null) {
-			return [];
+			return null;
 		}
 
 		return json_decode($data, true);

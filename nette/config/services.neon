@@ -1,34 +1,40 @@
 services:
-	- Nette\Caching\Cache
-	cache.storage: Nette\Caching\Storages\FileStorage(%appDir%/../data)
-	- App\Core\RouterFactory::createRouter
+    - Nette\Caching\Cache
+    cache.storage: Nette\Caching\Storages\FileStorage(%appDir%/../data)
+    - App\Core\RouterFactory::createRouter
 
-	# list of mocked drivers, registered for testing/demo purposes only
-	- App\Infrastructure\ElasticSearch\Mock\ElasticSearchDriver
-	- App\Infrastructure\MySQL\Mock\MySQLDriver
-	- App\Infrastructure\Redis\Mock\RedisDriver
+    # -------------------------------------------------------
+    # Storage adapters for product data (switch ES ↔ MySQL here)
+    # Only one adapter can be active at a time
+    # -------------------------------------------------------
+    mySQLAdapter: App\Infrastructure\MySQL\MySQLAdapter
+#   elasticSearchAdapter: App\Infrastructure\ElasticSearch\ElasticSearchAdapter
 
-	# persistent storage/cache adapters,
-	# only one adapter can be enabled as a general adapter at a time
-	# to switch between adapters, comment/uncomment the corresponding line below (see I.1 and I.2 in task.md)
-	mySQLAdapter: App\Infrastructure\MySQL\MySQLAdapter
-#	elasticSearchAdapter: App\Infrastructure\ElasticSearch\ElasticSearchAdapter
+    # -------------------------------------------------------
+    # Cache adapter for PRODUCT data (switch File ↔ Redis here)
+    # -------------------------------------------------------
+    productCacheAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
+#   productCacheAdapter: App\Infrastructure\Redis\RedisAdapter
 
-	fileCacheAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
-#	redisCacheAdapter: App\Infrastructure\Redis\RedisAdapter
+    # -------------------------------------------------------
+    # Storage adapter for TRACKING data (switch File ↔ Redis here)
+    # -------------------------------------------------------
+    trackingStorageAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
+#   trackingStorageAdapter: App\Infrastructure\Redis\RedisAdapter
 
-	- App\Domain\Product\ProductRepository
+    # -------------------------------------------------------
+    # Repositories – explicit cache wiring to avoid ambiguity
+    # -------------------------------------------------------
+    - App\Infrastructure\Product\ProductRepository(
+        cacheAdapter: @productCacheAdapter
+      )
 
-	# services
-	- App\Domain\Product\ProductService
-	- App\Domain\Tracking\TrackingRepository
+    - App\Infrastructure\Tracking\TrackingRepository(
+        cacheAdapter: @trackingStorageAdapter
+      )
 
-
-# this config option slows down the application in debug mode, so it is disabled by default. It can be enabled for development purposes.
-#search:
-#	-	in: %appDir%
-#		classes:
-#			- *Facade
-#			- *Factory
-#			- *Repository
-#			- *Service
+    # -------------------------------------------------------
+    # Domain Use Cases
+    # -------------------------------------------------------
+    - App\Domain\Product\UseCase\GetProductDetailUseCase
+    - App\Domain\Product\UseCase\GetProductTrackingUseCase

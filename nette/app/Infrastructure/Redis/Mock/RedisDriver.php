@@ -2,10 +2,12 @@
 
 namespace App\Infrastructure\Redis\Mock;
 
+use App\Infrastructure\Redis\IRedisDriver;
+
 /**
  * This is a very "dummy" replacement for Redis. It is used for demonstration/testing purposes only.
  */
-class RedisDriver
+class RedisDriver implements IRedisDriver
 {
 	private static array $cache;
 
@@ -14,9 +16,9 @@ class RedisDriver
 		self::$cache = [];
 	}
 
-	public function get(string $key): array
+	public function get(string $key): ?array
 	{
-		return self::$cache[$key] ?? [];
+		return self::$cache[$key] ?? null;
 	}
 
 	public function set(string $key, array $data): void

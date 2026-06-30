@@ -3,17 +3,16 @@
 namespace App\Infrastructure\Redis;
 
 use App\Infrastructure\Cache\ICacheAdapter;
-use App\Infrastructure\Redis\Mock\RedisDriver;
 
 class RedisAdapter implements ICacheAdapter
 {
 	public function __construct(
-		private readonly RedisDriver $redisDriver
+		private readonly IRedisDriver $redisDriver
 	)
 	{
 	}
 
-	public function get(string $key): array
+	public function get(string $key): ?array
 	{
 		return $this->redisDriver->get($key);
 	}
