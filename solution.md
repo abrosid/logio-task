@@ -1,263 +1,128 @@
-# Solution – Product Detail API
+# Solution – Product Detail API (DDD Architecture)
 
-> Řešení úlohy popsané v `task.md`: REST endpoint pro získání detailu produktu s cachováním a sledováním počtu dotazů.
+> Řešení úlohy popsané v `task.md`: REST endpoint pro získání detailu produktu s cachováním a sledováním počtu dotazů podle standardů Domain-Driven Design (DDD) a Clean Architecture.
 
 ---
 
 ## 1. Přehled architektury
 
-Aplikace je postavena na frameworku **Nette** (PHP 8.2+) a dělí se do čtyř vrstev inspirovaných **Clean Architecture** / **Layered Architecture** s DDD-inspirovaným namespace dělením (žádné Aggregates, Entities, Domain Events, Value Objects etc.):
+Aplikace je rozdělena do 4 vrstev s důsledným oddělením zodpovědností. Doménová vrstva (`App\Domain`) je chráněna před závislostmi na konkrétních technologiích (DB, Cache) pomocí Dependency Inversion.
 
 ```
-┌────────────────────────────────────────────────────┐
-│  Presentation  (HTTP vrstva, Presentery/Controllery)│
-├────────────────────────────────────────────────────┤
-│  Domain        (Byznys logika, Repository, Service) │
-├────────────────────────────────────────────────────┤
-│  Infrastructure (Adaptery, Drivery, Cache, DB)      │
-├────────────────────────────────────────────────────┤
-│  Core           (Router, Bootstrap)                 │
-└────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│  Presentation Layer (HTTP Presentery)                  │
+├────────────────────────────────────────────────────────┤
+│  Domain Layer       (Value Objects, Aggregates,        │
+│                      Repository Interfaces, Use Cases) │
+├────────────────────────────────────────────────────────┤
+│  Infrastructure    (Concrete Repositories, Adapters,  │
+│                      Drivers, Cache & DB)              │
+├────────────────────────────────────────────────────────┤
+│  Core Layer         (Routing, DI Container Bootstrap)  │
+└────────────────────────────────────────────────────────┘
 ```
 
 | Vrstva | Namespace | Obsah |
 |---|---|---|
-| Presentation | `App\Presentation\Product` | `ProductPresenter` – HTTP vstup / JSON výstup |
-| Domain | `App\Domain\Product` | `ProductService`, `ProductRepository`, `IProductRepository` |
-| Domain | `App\Domain\Tracking` | `TrackingRepository` – počítadlo dotazů |
-| Infrastructure | `App\Infrastructure\DB` | `DBRepository`, `IDBAdapter` – abstrakce DB |
-| Infrastructure | `App\Infrastructure\ElasticSearch` | `ElasticSearchAdapter` + `IElasticSearchDriver` |
-| Infrastructure | `App\Infrastructure\MySQL` | `MySQLAdapter` + `IMySQLDriver` |
-| Infrastructure | `App\Infrastructure\Cache` | `ICacheAdapter`, `ICacheRepository` |
-| Infrastructure | `App\Infrastructure\FileStorage` | `FileCacheAdapter` – file-based cache |
-| Infrastructure | `App\Infrastructure\Redis` | `RedisAdapter` – Redis cache (připraveno) |
-| Core | `App\Core` | `RouterFactory`, `Bootstrap` |
+| **Presentation** | `App\Presentation\Product` | [ProductPresenter](file:///Users/devel/logio-task/nette/app/Presentation/Product/ProductPresenter.php) – Přijímá requesty, validuje vstup do Value Objektů a volá Use Cases. |
+| **Domain (Product)** | `App\Domain\Product` | [Product](file:///Users/devel/logio-task/nette/app/Domain/Product/Product.php) (Entity/Aggregate Root), [IProductRepository](file:///Users/devel/logio-task/nette/app/Domain/Product/IProductRepository.php) (Contract). |
+| **Domain (Tracking)** | `App\Domain\Tracking` | [ProductTracking](file:///Users/devel/logio-task/nette/app/Domain/Tracking/ProductTracking.php) (Entity/Aggregate Root s doménovou logikou `increment()`), [ITrackingRepository](file:///Users/devel/logio-task/nette/app/Domain/Tracking/ITrackingRepository.php) (Contract). |
+| **Domain (Value Objects)**| `App\Domain\Product\ValueObject` | [ProductId](file:///Users/devel/logio-task/nette/app/Domain/Product/ValueObject/ProductId.php), [ProductName](file:///Users/devel/logio-task/nette/app/Domain/Product/ValueObject/ProductName.php) (Typově bezpečné neměnné hodnoty). |
+| **Domain (Use Cases)** | `App\Domain\Product\UseCase` | [GetProductDetailUseCase](file:///Users/devel/logio-task/nette/app/Domain/Product/UseCase/GetProductDetailUseCase.php), [GetProductTrackingUseCase](file:///Users/devel/logio-task/nette/app/Domain/Product/UseCase/GetProductTrackingUseCase.php) (Aplikační scénáře). |
+| **Infrastructure (Repositories)** | `App\Infrastructure\Product`<br>`App\Infrastructure\Tracking` | [ProductRepository](file:///Users/devel/logio-task/nette/app/Infrastructure/Product/ProductRepository.php), [TrackingRepository](file:///Users/devel/logio-task/nette/app/Infrastructure/Tracking/TrackingRepository.php) (Concrete DB/Cache operations & Object Mapping). |
+| **Infrastructure (DB & ES)** | `App\Infrastructure\DB`<br>`App\Infrastructure\MySQL`<br>`App\Infrastructure\ElasticSearch` | [IDBAdapter](file:///Users/devel/logio-task/nette/app/Infrastructure/DB/IDBAdapter.php), [MySQLAdapter](file:///Users/devel/logio-task/nette/app/Infrastructure/MySQL/MySQLAdapter.php), [ElasticSearchAdapter](file:///Users/devel/logio-task/nette/app/Infrastructure/ElasticSearch/ElasticSearchAdapter.php) (Unified DB Adapter pattern). |
+| **Infrastructure (Cache & Redis)**| `App\Infrastructure\Cache`<br>`App\Infrastructure\FileStorage`<br>`App\Infrastructure\Redis` | [ICacheAdapter](file:///Users/devel/logio-task/nette/app/Infrastructure/Cache/ICacheAdapter.php), [FileCacheAdapter](file:///Users/devel/logio-task/nette/app/Infrastructure/FileStorage/FileCacheAdapter.php), [RedisAdapter](file:///Users/devel/logio-task/nette/app/Infrastructure/Redis/RedisAdapter.php) (Unified Cache Adapter pattern). |
+| **Core** | `App\Core`, `App\` | [RouterFactory](file:///Users/devel/logio-task/nette/app/Core/RouterFactory.php), [Bootstrap](file:///Users/devel/logio-task/nette/app/Bootstrap.php) (Config booting & DI Container compilation). |
 
 ---
 
-## 2. Použité návrhové vzory
+## 2. Použité návrhové vzory a principy
 
-### 2.1 Adapter Pattern
+### 2.1 Rich Domain Model (Bohaté Entity)
+Zamezili jsme chudému doménovému modelu (Anemic Domain Model). Veškerá pravidla chování jsou zapouzdřena přímo v entitách:
+*   [ProductTracking](file:///Users/devel/logio-task/nette/app/Domain/Tracking/ProductTracking.php) spravuje stav a inkrementaci prostřednictvím metody `increment()`.
+*   Zákonitosti identity a hodnot produktu jsou vynuceny přes Value Objecty [ProductId](file:///Users/devel/logio-task/nette/app/Domain/Product/ValueObject/ProductId.php) a [ProductName](file:///Users/devel/logio-task/nette/app/Domain/Product/ValueObject/ProductName.php).
 
-**Problém:** Drivery ElasticSearch (`IElasticSearchDriver`) a MySQL (`IMySQLDriver`) mají různé metody (`findByID` vs. `findProduct`). Domain vrstva nesmí znát konkrétní technologii.
+### 2.2 Use Case Pattern (Application Services)
+Logika aplikačních scénářů je rozčleněna do samostatných tříd (Use Cases) namísto jedné obří služby:
+*   [GetProductDetailUseCase](file:///Users/devel/logio-task/nette/app/Domain/Product/UseCase/GetProductDetailUseCase.php) načte agregáty produktu a trackování z doménových repozitářů, provede inkrementaci dotazů, uloží změnu a zkompiluje odpověď.
+*   [GetProductTrackingUseCase](file:///Users/devel/logio-task/nette/app/Domain/Product/UseCase/GetProductTrackingUseCase.php) se stará o rychlé vrácení metrik dotazů.
 
-**Řešení:** Každý driver je obalený vlastním *Adapterem*, který implementuje společné rozhraní `IDBAdapter`:
-
+### 2.3 Adapter Pattern (Pružná DB a Cache)
+Drivery databází (`IElasticSearchDriver`, `IMySQLDriver`) a cache mají rozdílná API. Vyřešeno adaptéry s jednotným rozhraním:
 ```
-IElasticSearchDriver ──► ElasticSearchAdapter ──┐
-                                                  ├──► IDBAdapter ──► DBRepository
-IMySQLDriver         ──► MySQLAdapter         ──┘
+IElasticSearchDriver  ──►  ElasticSearchAdapter  ──┐
+                                                    ├──►  IDBAdapter  ──►  ProductRepository
+IMySQLDriver          ──►  MySQLAdapter          ──┘
 ```
+Stejný vzor se uplatňuje na cache (`FileCacheAdapter` vs. `RedisAdapter` implementující `ICacheAdapter`).
 
-**Přepnutí databáze** (dle požadavku I.1 v `task.md`) je tak triviální – v `services.neon` se zakomentuje jeden adapter a odkomentuje druhý, kód se nijak nemění:
-
-```neon
-# Přepnutí ze MySQL na ElasticSearch:
-# mySQLAdapter: App\Infrastructure\MySQL\MySQLAdapter
-elasticSearchAdapter: App\Infrastructure\ElasticSearch\ElasticSearchAdapter
-```
-
-Stejná logika platí pro cache (I.2 v `task.md`):
-
-```
-FileStorage (Nette) ──► FileCacheAdapter ──┐
-                                            ├──► ICacheAdapter ──► ProductRepository / TrackingRepository
-RedisDriver         ──► RedisAdapter      ──┘
-```
+### 2.4 Dependency Inversion (DIP)
+Třídy v doméně závisí výhradně na abstrakcích (`IProductRepository`, `ITrackingRepository`, `ICacheAdapter`). Konkrétní repozitáře a adaptéry se nacházejí v infrastruktuře a doméně se injektují prostřednictvím DI. Doménový kód je tak 100% čistý od SQL, ElasticSearch či Redis ovladačů.
 
 ---
 
-### 2.2 Repository Pattern
-
-**Domain vrstva** definuje pouze interface `IProductRepository`:
-
-```php
-interface IProductRepository
-{
-    public function getProduct(string $id): array;
-}
-```
-
-`ProductRepository` je konkrétní implementace, která:
-1. Dědí `DBRepository` (přístup k `IDBAdapter`).
-2. Implementuje `IProductRepository` (kontrakt pro domain).
-3. Implementuje `ICacheRepository` (kontrakt pro cachování – klíčování cache).
-
-```
-ProductRepository
-  extends DBRepository          (IDBAdapter $storageAdapter)
-  implements IProductRepository (getProduct)
-  implements ICacheRepository   (getCacheKey)
-```
-
-`TrackingRepository` je oddělený repository pro agregát sledování – uchovává pouze páry `id => count` přes `ICacheAdapter`.
-
----
-
-### 2.3 Strategy Pattern (přepínatelné implementace přes DI)
-
-Výběr konkrétní databáze a cache je **strategií** injektovanou kontejnerem závislostí (Nette DI). Nové strategie (např. MongoDB, Memcached) lze přidat bez změny existujícího kódu – stačí vytvořit nový adapter implementující příslušné rozhraní a zaregistrovat ho v konfiguraci.
-
----
-
-### 2.4 Dependency Injection + IoC
-
-Nette DI Container spravuje celý životní cyklus objektů. Závislosti jsou předávány přes konstruktor (preferred) nebo přes `#[Inject]` atribut (v Presenterech – Nette konvence):
-
-```php
-// Presenter – Nette konvence
-#[Inject]
-public ProductService $productService;
-
-// Doménová třída – konstruktor injection (čistší, testovatelné)
-public function __construct(
-    private readonly IProductRepository $productRepository,
-    private readonly TrackingRepository $trackingRepository,
-) {}
-```
-
----
-
-### 2.5 Interface Segregation (část SOLID)
-
-Rozhraní jsou navrhována malá a soudržná:
-
-| Interface | Metody | Účel |
-|---|---|---|
-| `IProductRepository` | `getProduct()` | Přístup k produktu |
-| `IDBAdapter` | `getByID()` | Sjednocení DB přístupu |
-| `ICacheAdapter` | `get()`, `set()` | Cache operace |
-| `ICacheRepository` | `getCacheKey()` | Generování klíče |
-| `IElasticSearchDriver` | `findByID()` | ES driver |
-| `IMySQLDriver` | `findProduct()` | MySQL driver |
-
----
-
-## 3. Workflow volání
+## 3. Workflow požadavku
 
 ```
 GET /product/detail/<id>
         │
         ▼
-ProductPresenter::actionDetail(id)
+ProductPresenter::actionDetail(string $id)
+        │
+        ├─► Převod string $id na Value Object ProductId
+        ▼
+GetProductDetailUseCase::execute(ProductId $productId)
+        │
+        ├─► ProductRepository::findById(ProductId)
+        │         ├─► ICacheAdapter::get("product_<id>") -> [Cache Hit] -> Return Product
+        │         └─► [Cache Miss]
+        │                 ├─► IDBAdapter::getByID(id) -> SQL/ES Driver Query
+        │                 ├─► ICacheAdapter::set("product_<id>", rawData)
+        │                 └─► Return Product
+        │
+        ├─► TrackingRepository::findByProductId(ProductId)
+        │         └─► ICacheAdapter::get("tracking_<id>") -> Return ProductTracking
+        │
+        ├─► ProductTracking::increment()
+        │
+        ├─► TrackingRepository::save(ProductTracking)
+        │         └─► ICacheAdapter::set("tracking_<id>", serializedData)
         │
         ▼
-ProductService::getProductDetail(id)
-        │
-        ├─► ProductRepository::getProduct(id)
-        │         │
-        │         ├─► ICacheAdapter::get("product_<id>")
-        │         │         (FileCacheAdapter / RedisAdapter)
-        │         │
-        │         └─[cache miss]─► IDBAdapter::getByID(id)
-        │                              (ElasticSearchAdapter / MySQLAdapter)
-        │                              └─► Driver::findByID/findProduct(id)
-        │                          └─► ICacheAdapter::set("product_<id>", data)
-        │
-        ├─► TrackingRepository::increment(id)
-        │         └─► ICacheAdapter::get/set("tracking_<id>")
-        │
-        └─► sendJson([...product data, tracking_count])
+ProductPresenter -> sendJson([...data, tracking_count])
 ```
 
 ---
 
-## 4. Výměnitelnost technologií (požadavky I.1, I.2, I.3)
+## 4. Výměnitelnost technologií v DI (`nette/config/services.neon`)
 
-### Přepnutí DB (ElasticSearch ↔ MySQL)
-
-Editace v `config/services.neon`:
-
+### Záměna zdrojové DB (MySQL ↔ ElasticSearch)
+Stačí povolit příslušný adaptér v konfiguraci:
 ```neon
-# Aktuálně aktivní: MySQL
-mySQLAdapter: App\Infrastructure\MySQL\MySQLAdapter
-# Přepnutí na ElasticSearch:
-# elasticSearchAdapter: App\Infrastructure\ElasticSearch\ElasticSearchAdapter
+    mySQLAdapter: App\Infrastructure\MySQL\MySQLAdapter
+#   elasticSearchAdapter: App\Infrastructure\ElasticSearch\ElasticSearchAdapter
 ```
+Díky autowiringu rozhraní `IDBAdapter` v [ProductRepository](file:///Users/devel/logio-task/nette/app/Infrastructure/Product/ProductRepository.php) proběhne změna transparentně na pozadí.
 
-Žádný kód v Domain nebo Presentation vrstvě se nemění. `ProductRepository` dostane jinou implementaci `IDBAdapter` automaticky přes DI.
-
-### Přepnutí Cache (File ↔ Redis)
-
+### Záměna Cache úložiště (Soubory ↔ Redis)
+Protože produktová data a analytics data (tracking) mohou mít odlišné nároky, repozitáře mají samostatné, nezávisle konfigurovatelné cache adaptéry:
 ```neon
-# Aktuálně aktivní: file cache
-fileCacheAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
-# Přepnutí na Redis:
-# redisCacheAdapter: App\Infrastructure\Redis\RedisAdapter
-```
+    # Cache adapter pro produktová data
+    productCacheAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
+#   productCacheAdapter: App\Infrastructure\Redis\RedisAdapter
 
-Stejný princip – `ICacheAdapter` je injektován do `ProductRepository` a `TrackingRepository`.
-
-### Přidání nové technologie
-
-Stačí:
-1. Vytvořit novou třídu implementující `IDBAdapter` nebo `ICacheAdapter`.
-2. Zaregistrovat ji v `services.neon`.
-
-Žádné změny v domain nebo presentation vrstvě.
-
----
-
-## 5. Struktura souborů
-
-```
-nette/app/
-├── Bootstrap.php
-├── Core/
-│   └── RouterFactory.php               # URL routing
-├── Domain/
-│   ├── Product/
-│   │   ├── IProductRepository.php      # Domain kontrakt
-│   │   ├── ProductRepository.php       # Implementace s cache
-│   │   ├── ProductService.php          # Business logika
-│   │   ├── UseCase/                    # (připraveno pro CQRS/use cases)
-│   │   └── ValueObject/               # (připraveno pro value objects)
-│   └── Tracking/
-│       └── TrackingRepository.php      # Počítadlo dotazů
-├── Infrastructure/
-│   ├── Cache/
-│   │   ├── ICacheAdapter.php
-│   │   └── ICacheRepository.php
-│   ├── DB/
-│   │   ├── DBRepository.php
-│   │   └── IDBAdapter.php
-│   ├── ElasticSearch/
-│   │   ├── ElasticSearchAdapter.php    # Adapter: ES → IDBAdapter
-│   │   ├── IElasticSearchDriver.php
-│   │   └── Mock/ElasticSearchDriver.php
-│   ├── FileStorage/
-│   │   └── FileCacheAdapter.php        # Adapter: Nette FileStorage → ICacheAdapter
-│   ├── MySQL/
-│   │   ├── MySQLAdapter.php            # Adapter: MySQL → IDBAdapter
-│   │   ├── IMySQLDriver.php
-│   │   └── Mock/MySQLDriver.php
-│   └── Redis/
-│       ├── RedisAdapter.php            # Adapter: Redis → ICacheAdapter
-│       └── Mock/RedisDriver.php
-└── Presentation/
-    └── Product/
-        └── ProductPresenter.php        # Controller, JSON response
+    # Cache adapter pro čítač dotazů (analytics data)
+    trackingStorageAdapter: App\Infrastructure\FileStorage\FileCacheAdapter
+#   trackingStorageAdapter: App\Infrastructure\Redis\RedisAdapter
 ```
 
 ---
 
-## 6. Co je připraveno, ale ještě neimplementováno
+## 5. Zajištění testovatelnosti a oddělení prostředí
 
-| Místo | Poznámka |
-|---|---|
-| `Domain/Product/UseCase/` | Připraveno pro budoucí CQRS use-case třídy (GetProductUseCase, apod.) |
-| `Domain/Product/ValueObject/` | Připraveno pro `ProductId` a další value objects (typová bezpečnost ID) |
-| `Infrastructure/Redis/RedisAdapter` | Implementován, pouze zakomentován – produkčně použitelný po připojení reálného Redis klienta |
-
----
-
-## 7. Shrnutí
-
-| Požadavek | Řešení |
-|---|---|
-| ElasticSearch nebo MySQL | **Adapter Pattern** + přepínání přes DI konfiguraci |
-| Cachování, snadno zaměnitelné | **Adapter Pattern** (`ICacheAdapter`) + přepínání v `services.neon` |
-| Počítadlo dotazů | `TrackingRepository` s `ICacheAdapter` (file nebo Redis) |
-| Oddělení vrstev | **Layered Architecture** (Presentation / Domain / Infrastructure) |
-| Testovatelnost | Vše za interface, mock drivery v `Mock/` adresářích |
-| DI / IoC | Nette DI Container, constructor injection |
+- **Mocks:** Mockovací drivery pro ES/MySQL/Redis testy jsou přesunuty do lokální DI konfigurace [services.local.neon](file:///Users/devel/logio-task/nette/config/services.local.neon), aby se zabránilo znečištění produkčních definic.
+- **Unit testy:** Soubor [ProductRepositoryTest.php](file:///Users/devel/logio-task/nette/tests/ProductRepositoryTest.php) plně testuje:
+  1. `GetProductDetailUseCaseTest` – prověření správné orchestrace a inkrementace.
+  2. `ProductRepositoryTest` – prověření cache hitů (kdy DB není vůbec dotázána) a cache missů.
+  3. `TrackingRepositoryTest` – testování výchozí hodnoty na miss a uložení/načtení stavu trackeru.

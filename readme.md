@@ -36,6 +36,7 @@ See the [task.md](task.md) file for detailed instructions on how to implement th
 7. Access the application in your browser at [http://localhost:8080](http://localhost:8080).
 8. Navigate to the endpoint.  [http://localhost:8080/propduct/detail/123](http://localhost:8080/product/detail/123).
 Each next request to the same endpoint will return the cached result and increment the query count for that product..
+9. Change the mySQLAdapter to elasticSearchAdapter in the [services.neon](nette/config/services.neon) file to switch the data source from MySQL to ElasticSearch. Clear the product cache from [data](data) folder and repeat step 8 to see the storage changes.
 
 # Debugging with Xdebug
 
